@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CodeScan — AI Code Review</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --surface: #11111a;
+        --surface2: #1a1a28;
+        --border: #2a2a3d;
+        --accent: #00ff9d;
+        --accent2: #7b5ea7;
+        --accent3: #ff6b4a;
+        --warn: #ffd166;
+        --critical: #ff4d6d;
+        --high: #ff6b4a;
+        --medium: #ffd166;
+        --low: #00b4d8;
+        --info: #6c757d;
+        --text: #e8e8f0;
+        --text-dim: #6b6b8a;
+        --text-bright: #ffffff;
+        --mono: "Space Mono", monospace;
+        --sans: "Syne", sans-serif;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(0, 255, 157, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 255, 157, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(80px);
+        pointer-events: none;
+        z-index: 0;
+        animation: orb-float 8s ease-in-out infinite alternate;
+      }
+      .orb-1 {
+        width: 400px;
+        height: 400px;
+        background: rgba(0, 255, 157, 0.05);
+        top: -100px;
+        right: -100px;
+      }
+      .orb-2 {
+        width: 300px;
+        height: 300px;
+        background: rgba(123, 94, 167, 0.07);
+        bottom: 100px;
+        left: -80px;
+        animation-delay: -4s;
+      }
+
+      @keyframes orb-float {
+        from {
+          transform: translate(0, 0) scale(1);
+        }
+        to {
+          transform: translate(20px, 30px) scale(1.05);
+        }
+      }
+
+      .app {
+        position: relative;
+        z-index: 1;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 28px 0 24px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 40px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        box-shadow: 0 0 20px rgba(0, 255, 157, 0.15);
+      }
+
+      .logo-text {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: var(--text-bright);
+      }
+      .logo-text span {
+        color: var(--accent);
+      }
+
+      .header-badge {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        color: var(--text-dim);
+        letter-spacing: 1px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 32px;
+      }
+
+      @media (max-width: 900px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface2);
+      }
+
+      .panel-title {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+
+      .lang-bar {
+        display: flex;
+        gap: 8px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+
+      .lang-btn {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        background: transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .lang-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .lang-btn.active {
+        border-color: var(--accent);
+        background: rgba(0, 255, 157, 0.08);
+        color: var(--accent);
+      }
+
+      .code-area {
+        width: 100%;
+        min-height: 340px;
+        background: transparent;
+        border: none;
+        outline: none;
+        resize: none;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text);
+        padding: 18px;
+        tab-size: 2;
+      }
+      .code-area::placeholder {
+        color: var(--text-dim);
+      }
+
+      .action-bar {
+        padding: 14px 18px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .char-count {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+      }
+      .btn-group {
+        display: flex;
+        gap: 10px;
+      }
+
+      .btn {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 10px 20px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        letter-spacing: 1px;
+        transition: all 0.2s;
+        text-transform: uppercase;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+      }
+      .btn-ghost:hover {
+        border-color: var(--text-dim);
+        color: var(--text);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #000;
+        box-shadow: 0 0 20px rgba(0, 255, 157, 0.3);
+        position: relative;
+        overflow: hidden;
+      }
+      .btn-primary::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transform: translateX(-100%);
+        transition: transform 0.4s;
+      }
+      .btn-primary:hover::before {
+        transform: translateX(100%);
+      }
+      .btn-primary:hover {
+        box-shadow: 0 0 30px rgba(0, 255, 157, 0.5);
+      }
+      .btn-primary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .results-panel {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .score-display {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface2);
+      }
+
+      .score-ring {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        flex-shrink: 0;
+      }
+      .score-ring svg {
+        transform: rotate(-90deg);
+      }
+      .ring-bg {
+        fill: none;
+        stroke: var(--border);
+        stroke-width: 6;
+      }
+      .ring-fill {
+        fill: none;
+        stroke-width: 6;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .score-num {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-bright);
+        line-height: 1;
+      }
+      .score-num small {
+        font-size: 9px;
+        color: var(--text-dim);
+        margin-top: 2px;
+      }
+
+      .score-meta {
+        flex: 1;
+      }
+      .score-label {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: var(--text-bright);
+      }
+      .score-sublabel {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 0.5px;
+      }
+
+      .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .stat-item {
+        padding: 14px 18px;
+        border-right: 1px solid var(--border);
+        text-align: center;
+      }
+      .stat-item:last-child {
+        border-right: none;
+      }
+      .stat-num {
+        font-family: var(--mono);
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 4px;
+      }
+      .stat-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-dim);
+      }
+      .stat-style .stat-num {
+        color: #a78bfa;
+      }
+      .stat-bug .stat-num {
+        color: var(--high);
+      }
+      .stat-sec .stat-num {
+        color: var(--critical);
+      }
+
+      .results-body {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 400px;
+        max-height: 500px;
+        padding: 18px;
+      }
+
+      .issues-section {
+        margin-bottom: 20px;
+      }
+
+      .section-title {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .section-title::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .issue-card {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-left: 3px solid;
+        border-radius: 4px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+        animation: slide-in 0.3s ease forwards;
+        opacity: 0;
+      }
+      @keyframes slide-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .issue-card:hover {
+        transform: translateX(3px);
+      }
+      .issue-card.critical {
+        border-left-color: var(--critical);
+      }
+      .issue-card.high {
+        border-left-color: var(--high);
+      }
+      .issue-card.medium {
+        border-left-color: var(--medium);
+      }
+      .issue-card.low {
+        border-left-color: var(--low);
+      }
+      .issue-card.info {
+        border-left-color: var(--info);
+      }
+
+      .issue-card:nth-child(1) {
+        animation-delay: 0.05s;
+      }
+      .issue-card:nth-child(2) {
+        animation-delay: 0.1s;
+      }
+      .issue-card:nth-child(3) {
+        animation-delay: 0.15s;
+      }
+      .issue-card:nth-child(4) {
+        animation-delay: 0.2s;
+      }
+      .issue-card:nth-child(5) {
+        animation-delay: 0.25s;
+      }
+      .issue-card:nth-child(6) {
+        animation-delay: 0.3s;
+      }
+      .issue-card:nth-child(7) {
+        animation-delay: 0.35s;
+      }
+      .issue-card:nth-child(8) {
+        animation-delay: 0.4s;
+      }
+
+      .issue-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .sev-badge {
+        font-family: var(--mono);
+        font-size: 9px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 2px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .sev-badge.critical {
+        background: rgba(255, 77, 109, 0.2);
+        color: var(--critical);
+      }
+      .sev-badge.high {
+        background: rgba(255, 107, 74, 0.2);
+        color: var(--high);
+      }
+      .sev-badge.medium {
+        background: rgba(255, 209, 102, 0.2);
+        color: var(--medium);
+      }
+      .sev-badge.low {
+        background: rgba(0, 180, 216, 0.2);
+        color: var(--low);
+      }
+      .sev-badge.info {
+        background: rgba(108, 117, 125, 0.2);
+        color: var(--info);
+      }
+
+      .issue-location {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 2px 6px;
+        border-radius: 2px;
+      }
+
+      .issue-desc {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text);
+        margin-bottom: 6px;
+      }
+
+      .issue-suggestion {
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--accent);
+        background: rgba(0, 255, 157, 0.04);
+        border: 1px solid rgba(0, 255, 157, 0.1);
+        border-radius: 3px;
+        padding: 8px 10px;
+      }
+      .issue-suggestion::before {
+        content: "→ ";
+        opacity: 0.6;
+      }
+
+      .fix-code-block {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 16px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--text);
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+        position: relative;
+      }
+
+      .copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 4px 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        color: var(--text-dim);
+        cursor: pointer;
+        transition: all 0.15s;
+        letter-spacing: 1px;
+      }
+      .copy-btn:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .sev-breakdown {
+        margin-top: 16px;
+      }
+
+      .sev-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .sev-row-label {
+        width: 70px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .sev-bar-track {
+        flex: 1;
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .sev-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 0%;
+      }
+      .sev-row-count {
+        width: 20px;
+        text-align: right;
+        color: var(--text);
+      }
+
+      .loading-overlay {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 60px 20px;
+        text-align: center;
+      }
+      .loading-overlay.active {
+        display: flex;
+      }
+
+      .scanner-anim {
+        width: 60px;
+        height: 60px;
+        position: relative;
+      }
+      .scanner-anim::before,
+      .scanner-anim::after {
+        content: "";
+        position: absolute;
+        border: 2px solid var(--accent);
+        border-radius: 50%;
+        animation: scanner 1.5s ease-in-out infinite;
+      }
+      .scanner-anim::before {
+        inset: 0;
+      }
+      .scanner-anim::after {
+        inset: 10px;
+        animation-delay: 0.3s;
+        opacity: 0.6;
+      }
+      @keyframes scanner {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.15);
+          opacity: 0.3;
+        }
+      }
+
+      .loading-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 220px;
+      }
+
+      .load-step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text-dim);
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        background: var(--surface2);
+        transition: all 0.3s;
+      }
+      .load-step.active {
+        color: var(--accent);
+        border-color: rgba(0, 255, 157, 0.3);
+        background: rgba(0, 255, 157, 0.05);
+      }
+      .load-step.done {
+        color: var(--text-dim);
+        border-color: var(--border);
+      }
+      .step-icon {
+        font-size: 14px;
+        width: 18px;
+        text-align: center;
+      }
+
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        text-align: center;
+        gap: 12px;
+        color: var(--text-dim);
+      }
+      .empty-icon {
+        font-size: 36px;
+        opacity: 0.4;
+      }
+      .empty-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-dim);
+      }
+      .empty-sub {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        opacity: 0.6;
+      }
+
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface2);
+      }
+
+      .tab {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 12px 18px;
+        cursor: pointer;
+        color: var(--text-dim);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border-bottom: 2px solid transparent;
+        transition: all 0.15s;
+      }
+      .tab:hover {
+        color: var(--text);
+      }
+      .tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      .no-issues {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+        padding: 12px;
+        background: rgba(0, 255, 157, 0.04);
+        border: 1px solid rgba(0, 255, 157, 0.1);
+        border-radius: 3px;
+        text-align: center;
+      }
+
+      .error-msg {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--critical);
+        padding: 12px;
+        background: rgba(255, 77, 109, 0.05);
+        border: 1px solid rgba(255, 77, 109, 0.2);
+        border-radius: 3px;
+        margin: 16px;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        letter-spacing: 0.5px;
+      }
+      .footer-powered {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .footer-powered span {
+        color: var(--accent);
+      }
+
+      ::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="app">
+      <header>
+        <div class="logo">
+          <div class="logo-icon">⬡</div>
+          <div class="logo-text">Code<span>Scan</span></div>
+        </div>
+        <div class="header-badge">LANGGRAPH + GROQ</div>
+      </header>
+
+      <div class="workspace">
+        <!-- LEFT: Code Input -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><span class="dot"></span>INPUT</div>
+            <div
+              style="
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--text-dim);
+              "
+              id="lang-detected"
+            >
+              AUTO-DETECT
+            </div>
+          </div>
+
+          <div class="lang-bar">
+            <button class="lang-btn active" data-lang="auto">AUTO</button>
+            <button class="lang-btn" data-lang="python">PY</button>
+            <button class="lang-btn" data-lang="javascript">JS</button>
+            <button class="lang-btn" data-lang="typescript">TS</button>
+            <button class="lang-btn" data-lang="java">JAVA</button>
+            <button class="lang-btn" data-lang="go">GO</button>
+            <button class="lang-btn" data-lang="rust">RUST</button>
+          </div>
+
+          <textarea
+            class="code-area"
+            id="code-input"
+            placeholder="# Paste your code here...
+# Agents will scan for:
+#   🎨 Style issues
+#   🐛 Bugs & logic errors
+#   🔐 Security vulnerabilities"
+            spellcheck="false"
+          ></textarea>
+
+          <div class="action-bar">
+            <span class="char-count" id="char-count">0 chars</span>
+            <div class="btn-group">
+              <button class="btn btn-ghost" onclick="clearAll()">CLEAR</button>
+              <button
+                class="btn btn-primary"
+                id="review-btn"
+                onclick="runReview()"
+              >
+                ▶ ANALYZE
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Results -->
+        <div class="panel results-panel">
+          <div class="panel-header">
+            <div class="panel-title"><span class="dot"></span>ANALYSIS</div>
+            <div
+              style="
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--text-dim);
+              "
+              id="result-meta"
+            >
+              READY
+            </div>
+          </div>
+
+          <div class="score-display" id="score-display" style="display: none">
+            <div class="score-ring">
+              <svg viewBox="0 0 80 80" width="80" height="80">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle
+                  class="ring-fill"
+                  id="ring-fill"
+                  cx="40"
+                  cy="40"
+                  r="34"
+                  stroke-dasharray="213.6"
+                  stroke-dashoffset="213.6"
+                />
+              </svg>
+              <div class="score-num" id="score-num">0<small>/100</small></div>
+            </div>
+            <div class="score-meta">
+              <div class="score-label" id="score-label">—</div>
+              <div class="score-sublabel" id="score-sublabel">
+                AWAITING SCAN
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-strip" id="stats-strip" style="display: none">
+            <div class="stat-item stat-style">
+              <div class="stat-num" id="stat-style">0</div>
+              <div class="stat-label">🎨 Style</div>
+            </div>
+            <div class="stat-item stat-bug">
+              <div class="stat-num" id="stat-bug">0</div>
+              <div class="stat-label">🐛 Bugs</div>
+            </div>
+            <div class="stat-item stat-sec">
+              <div class="stat-num" id="stat-sec">0</div>
+              <div class="stat-label">🔐 Security</div>
+            </div>
+          </div>
+
+          <div class="tabs" id="result-tabs" style="display: none">
+            <div class="tab active" onclick="switchTab(event, 'issues')">
+              ISSUES
+            </div>
+            <div class="tab" onclick="switchTab(event, 'severity')">
+              SEVERITY
+            </div>
+            <div class="tab" onclick="switchTab(event, 'fix')">FIXED CODE</div>
+          </div>
+
+          <div class="loading-overlay" id="loading">
+            <div class="scanner-anim"></div>
+            <div class="loading-steps">
+              <div class="load-step" id="step-router">
+                <span class="step-icon">🔀</span> DETECTING LANGUAGE
+              </div>
+              <div class="load-step" id="step-parallel">
+                <span class="step-icon">⚡</span> RUNNING PARALLEL AGENTS
+              </div>
+              <div class="load-step" id="step-fix">
+                <span class="step-icon">🔧</span> GENERATING FIXES
+              </div>
+              <div class="load-step" id="step-report">
+                <span class="step-icon">📋</span> BUILDING REPORT
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">⬡</div>
+            <div class="empty-title">No code submitted yet</div>
+            <div class="empty-sub">Paste code → click ANALYZE</div>
+          </div>
+
+          <div
+            class="results-body tab-content active"
+            id="tab-issues"
+            style="display: none"
+          >
+            <div id="issues-container"></div>
+          </div>
+
+          <div
+            class="results-body tab-content"
+            id="tab-severity"
+            style="display: none"
+          >
+            <div class="sev-breakdown" id="sev-breakdown"></div>
+          </div>
+
+          <div
+            class="results-body tab-content"
+            id="tab-fix"
+            style="display: none"
+          >
+            <div style="position: relative">
+              <pre class="fix-code-block" id="fix-code"></pre>
+              <button class="copy-btn" onclick="copyFix()">COPY</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div>CODESCAN v1.0 — MULTI-AGENT REVIEW</div>
+        <div class="footer-powered">
+          POWERED BY <span>LANGGRAPH</span> + <span>GROQ</span>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // ── Config ─────────────────────────────────────────────────────────────
+      // Change this to your FastAPI server URL when running backend
+      const API_BASE = "http://localhost:8000";
+
+      // ── Char counter ───────────────────────────────────────────────────────
+      document
+        .getElementById("code-input")
+        .addEventListener("input", function () {
+          document.getElementById("char-count").textContent =
+            this.value.length + " chars";
+        });
+
+      // ── Language selector ──────────────────────────────────────────────────
+      document.querySelectorAll(".lang-btn").forEach((btn) => {
+        btn.addEventListener("click", function () {
+          document
+            .querySelectorAll(".lang-btn")
+            .forEach((b) => b.classList.remove("active"));
+          this.classList.add("active");
+        });
+      });
+
+      // ── Tab switcher ───────────────────────────────────────────────────────
+      function switchTab(e, name) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach((t) => {
+          t.classList.remove("active");
+          t.style.display = "none";
+        });
+        e.target.classList.add("active");
+        const el = document.getElementById("tab-" + name);
+        el.classList.add("active");
+        el.style.display = "block";
+      }
+
+      // ── Clear ──────────────────────────────────────────────────────────────
+      function clearAll() {
+        document.getElementById("code-input").value = "";
+        document.getElementById("char-count").textContent = "0 chars";
+        document.getElementById("empty-state").style.display = "flex";
+        document.getElementById("score-display").style.display = "none";
+        document.getElementById("stats-strip").style.display = "none";
+        document.getElementById("result-tabs").style.display = "none";
+        ["tab-issues", "tab-severity", "tab-fix"].forEach((id) => {
+          document.getElementById(id).style.display = "none";
+          document.getElementById(id).classList.remove("active");
+        });
+        document.getElementById("result-meta").textContent = "READY";
+        document.getElementById("lang-detected").textContent = "AUTO-DETECT";
+      }
+
+      // ── Loading animation ──────────────────────────────────────────────────
+      function animateSteps() {
+        const steps = [
+          "step-router",
+          "step-parallel",
+          "step-fix",
+          "step-report",
+        ];
+        const delays = [400, 1200, 2800, 4200];
+        steps.forEach((id, i) => {
+          setTimeout(() => {
+            steps.forEach((s) =>
+              document.getElementById(s).classList.remove("active"),
+            );
+            document.getElementById(id).classList.add("active");
+            if (i > 0)
+              document.getElementById(steps[i - 1]).classList.add("done");
+          }, delays[i]);
+        });
+      }
+
+      // ── Score ring animation ───────────────────────────────────────────────
+      function animateScore(score) {
+        const circumference = 213.6;
+        const offset = circumference - (score / 100) * circumference;
+        const fill = document.getElementById("ring-fill");
+        const color =
+          score >= 90
+            ? "#00ff9d"
+            : score >= 75
+              ? "#a78bfa"
+              : score >= 50
+                ? "#ffd166"
+                : "#ff4d6d";
+        fill.style.stroke = color;
+        setTimeout(() => {
+          fill.style.strokeDashoffset = offset;
+          let current = 0;
+          const step = score / 40;
+          const counter = setInterval(() => {
+            current = Math.min(current + step, score);
+            document.getElementById("score-num").innerHTML =
+              Math.round(current) + "<small>/100</small>";
+            if (current >= score) clearInterval(counter);
+          }, 25);
+        }, 300);
+
+        const labels = {
+          90: ["🏆 Excellent", "CLEAN CODE"],
+          75: ["✅ Good", "MINOR ISSUES"],
+          50: ["⚠️ Needs Work", "REVIEW REQUIRED"],
+          0: ["❌ Poor", "MAJOR ISSUES FOUND"],
+        };
+        const threshold =
+          score >= 90 ? 90 : score >= 75 ? 75 : score >= 50 ? 50 : 0;
+        document.getElementById("score-label").textContent =
+          labels[threshold][0];
+        document.getElementById("score-sublabel").textContent =
+          labels[threshold][1];
+      }
+
+      // ── Build issue cards ──────────────────────────────────────────────────
+      function buildIssueCards(issues, container) {
+        if (!issues || issues.length === 0) {
+          container.innerHTML += `<div class="no-issues">✅ No issues found in this category</div>`;
+          return;
+        }
+        issues.forEach((issue) => {
+          const sev = (issue.severity || "info").toLowerCase();
+          const card = document.createElement("div");
+          card.className = `issue-card ${sev}`;
+          card.innerHTML = `
+      <div class="issue-top">
+        <span class="sev-badge ${sev}">${issue.severity || "INFO"}</span>
+        <span class="issue-location">${issue.line_hint || "?"}</span>
+      </div>
+      <div class="issue-desc">${issue.description || ""}</div>
+      <div class="issue-suggestion">${issue.suggestion || ""}</div>`;
+          container.appendChild(card);
+        });
+      }
+
+      // ── Build severity breakdown ───────────────────────────────────────────
+      function buildSeverityBreakdown(allIssues) {
+        const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+        allIssues.forEach((i) => {
+          const s = (i.severity || "INFO").toUpperCase();
+          if (counts[s] !== undefined) counts[s]++;
+        });
+        const max = Math.max(...Object.values(counts), 1);
+        const colors = {
+          CRITICAL: "#ff4d6d",
+          HIGH: "#ff6b4a",
+          MEDIUM: "#ffd166",
+          LOW: "#00b4d8",
+          INFO: "#6c757d",
+        };
+        const container = document.getElementById("sev-breakdown");
+        container.innerHTML =
+          '<div class="section-title">SEVERITY BREAKDOWN</div>';
+        Object.entries(counts).forEach(([sev, count]) => {
+          const pct = (count / max) * 100;
+          container.innerHTML += `
+      <div class="sev-row">
+        <span class="sev-row-label">${sev}</span>
+        <div class="sev-bar-track">
+          <div class="sev-bar-fill" style="background:${colors[sev]}" data-pct="${pct}"></div>
+        </div>
+        <span class="sev-row-count">${count}</span>
+      </div>`;
+        });
+        setTimeout(() => {
+          document.querySelectorAll(".sev-bar-fill").forEach((bar) => {
+            bar.style.width = bar.dataset.pct + "%";
+          });
+        }, 100);
+      }
+
+      // ── MAIN: Run review via FastAPI backend ───────────────────────────────
+      async function runReview() {
+        const code = document.getElementById("code-input").value.trim();
+        const language =
+          document.querySelector(".lang-btn.active")?.dataset.lang || "auto";
+
+        if (!code) {
+          alert("Please paste some code first.");
+          return;
+        }
+
+        // Show loading
+        document.getElementById("empty-state").style.display = "none";
+        document.getElementById("score-display").style.display = "none";
+        document.getElementById("stats-strip").style.display = "none";
+        document.getElementById("result-tabs").style.display = "none";
+        ["tab-issues", "tab-severity", "tab-fix"].forEach((id) => {
+          document.getElementById(id).style.display = "none";
+          document.getElementById(id).classList.remove("active");
+        });
+        document.getElementById("loading").classList.add("active");
+        document.getElementById("review-btn").disabled = true;
+        document.getElementById("result-meta").textContent = "SCANNING...";
+        animateSteps();
+
+        try {
+          // ── POST to FastAPI backend ──────────────────────────────────
+          const response = await fetch(`${API_BASE}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, language }),
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Server error");
+          }
+
+          const data = await response.json();
+          renderResults(data);
+        } catch (err) {
+          document.getElementById("loading").classList.remove("active");
+          document.getElementById("empty-state").style.display = "flex";
+          document.getElementById("empty-state").innerHTML = `
+      <div class="empty-icon">⚠️</div>
+      <div class="empty-title" style="color:var(--critical)">Error: ${err.message}</div>
+      <div class="empty-sub">Make sure the backend is running on ${API_BASE}</div>`;
+          document.getElementById("result-meta").textContent = "ERROR";
+        } finally {
+          document.getElementById("review-btn").disabled = false;
+        }
+      }
+
+      // ── Render results from API response ──────────────────────────────────
+      function renderResults(data) {
+        document.getElementById("loading").classList.remove("active");
+        document.getElementById("score-display").style.display = "flex";
+        document.getElementById("stats-strip").style.display = "grid";
+        document.getElementById("result-tabs").style.display = "flex";
+        document.getElementById("lang-detected").textContent = (
+          data.language || ""
+        ).toUpperCase();
+        document.getElementById("result-meta").textContent =
+          (data.language || "").toUpperCase() +
+          " · " +
+          (data.total_issues || 0) +
+          " ISSUES";
+
+        animateScore(data.score || 0);
+
+        document.getElementById("stat-style").textContent = (
+          data.style_issues || []
+        ).length;
+        document.getElementById("stat-bug").textContent = (
+          data.bug_issues || []
+        ).length;
+        document.getElementById("stat-sec").textContent = (
+          data.security_issues || []
+        ).length;
+
+        // Issues tab
+        const issuesCont = document.getElementById("issues-container");
+        issuesCont.innerHTML = "";
+
+        [
+          { label: "🎨 Style Issues", issues: data.style_issues },
+          { label: "🐛 Bug Issues", issues: data.bug_issues },
+          { label: "🔐 Security Issues", issues: data.security_issues },
+        ].forEach(({ label, issues }, i) => {
+          const title = document.createElement("div");
+          title.className = "section-title";
+          if (i > 0) title.style.marginTop = "16px";
+          title.textContent = label;
+          issuesCont.appendChild(title);
+          buildIssueCards(issues || [], issuesCont);
+        });
+
+        // Severity tab
+        const allIssues = [
+          ...(data.style_issues || []),
+          ...(data.bug_issues || []),
+          ...(data.security_issues || []),
+        ];
+        buildSeverityBreakdown(allIssues);
+
+        // Fix tab
+        document.getElementById("fix-code").textContent =
+          data.fix_suggestions || "No fix generated.";
+
+        // Show issues tab
+        document.getElementById("tab-issues").style.display = "block";
+        document.getElementById("tab-issues").classList.add("active");
+      }
+
+      // ── Copy fix ───────────────────────────────────────────────────────────
+      function copyFix() {
+        navigator.clipboard
+          .writeText(document.getElementById("fix-code").textContent)
+          .then(() => {
+            const btn = document.querySelector(".copy-btn");
+            btn.textContent = "COPIED!";
+            setTimeout(() => (btn.textContent = "COPY"), 1500);
+          });
+      }
+    </script>
+  </body>
+</html>
