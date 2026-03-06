@@ -8,7 +8,6 @@
 ![LangChain](https://img.shields.io/badge/LangChain-0.3+-1C3C3C?style=flat)
 ![Groq](https://img.shields.io/badge/Groq-LLaMA_3.3-F55036?style=flat)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat&logo=fastapi&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
 ---
 
