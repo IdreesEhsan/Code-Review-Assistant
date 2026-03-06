@@ -101,8 +101,8 @@ code_review_assistant/
 │   └── helpers.py              # JSON parsing, report saving
 │
 ├── sample_codes/
-│   ├── bad_python.py           # Test file with intentional issues
-│   └── bad_javascript.js       # Test file with intentional issues
+│   ├── sample.py           # Test file with intentional issues
+│   └── sample.js       # Test file with intentional issues
 │
 └── output_reports/             # Generated reports saved here (git ignored)
 ```
